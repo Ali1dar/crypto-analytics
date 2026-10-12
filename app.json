@@ -1,1 +1,9 @@
-{ "expo": { "name": "محلل الكريبتو", "slug": "crypto-analytics", "userInterfaceStyle": "dark", "extra": {}, "ios": { "infoPlist": { "CFBundleAllowMixedLocalizations": true } } } }
+{
+  "expo": {
+    "name": "محلل الكريبتو",
+    "slug": "crypto-analytics",
+    "version": "1.0.0",
+    "userInterfaceStyle": "dark",
+    "android": { "package": "com.alidli.cryptoanalytics" }
+  }
+}
