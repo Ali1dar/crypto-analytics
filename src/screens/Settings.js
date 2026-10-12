@@ -28,6 +28,14 @@ export default function Settings() {
           {['15m', '1h', '4h'].map(x => <Chip key={x} label={x} active={settings.interval === x} onPress={() => { setSettings({ interval: x }); setTimeout(() => analyzeTop(), 0); }} />)}
         </View>
       </Card>
+      <Card style={{ marginBottom: 12 }}>
+        <Text style={lab}>المساعد الذكي</Text>
+        {[['proxyUrl', 'رابط الخادم (Worker URL)'], ['token', 'رمز التطبيق (APP_TOKEN)']].map(([k, ph]) => (
+          <TextInput key={k} defaultValue={settings[k] || ''} placeholder={ph} placeholderTextColor={C.dim} autoCapitalize="none"
+            onEndEditing={(e) => setSettings({ [k]: e.nativeEvent.text.trim() })}
+            style={{ backgroundColor: C.bg, color: C.text, borderRadius: 10, padding: 10, borderWidth: 1, borderColor: C.border, marginBottom: 8 }} />
+        ))}
+      </Card>
       <TouchableOpacity onPress={() => Alert.alert('تصفير الصفقات', 'سيتم حذف كل الصفقات الوهمية.', [{ text: 'إلغاء' }, { text: 'حذف', style: 'destructive', onPress: resetTrades }])}
         style={{ padding: 14, borderRadius: 12, borderWidth: 1, borderColor: C.red, alignItems: 'center' }}>
         <Text style={{ color: C.red, fontWeight: '700' }}>حذف كل الصفقات</Text>

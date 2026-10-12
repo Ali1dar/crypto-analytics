@@ -4,10 +4,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fetchBinanceTickers, fetchBybitTickers, fetchKlines } from '../services/api';
 import { analyze } from '../utils/indicators';
 
+const HT = { '15m': '1h', '1h': '4h', '4h': '1d' };
 const pnlOf = (t, price) => (price - t.entry) / t.entry * t.size * (t.side === 'long' ? 1 : -1);
 
 export const useStore = create(persist((set, get) => ({
-  settings: { capital: 10000, minConfidence: 70, interval: '1h' },
+  settings: { capital: 10000, minConfidence: 70, interval: '1h', proxyUrl: '', token: '' },
   trades: [],
   tickers: {}, analysis: {}, loading: false,
 
@@ -21,14 +22,17 @@ export const useStore = create(persist((set, get) => ({
     if (Object.keys(map).length) { set({ tickers: map }); get().checkTrades(); }
   },
 
-  analyzeTop: async (n = 20) => {
+  analyzeTop: async (n = 15) => {
     set({ loading: true });
     const { tickers, settings } = get();
     const top = Object.values(tickers).sort((a,b) => b.volume - a.volume);
     const pick = ['Binance','Bybit'].flatMap(ex => top.filter(t => t.exchange === ex).slice(0, n));
     const out = {};
     await Promise.all(pick.map(async t => {
-      try { out[t.key] = analyze(await fetchKlines(t.exchange, t.symbol, settings.interval), t); } catch (e) {}
+      try {
+        const [k, h] = await Promise.all([fetchKlines(t.exchange, t.symbol, settings.interval), fetchKlines(t.exchange, t.symbol, HT[settings.interval])]);
+        out[t.key] = analyze(k, t, h);
+      } catch (e) {}
     }));
     set(s => ({ analysis: { ...s.analysis, ...out }, loading: false }));
   },

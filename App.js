@@ -9,6 +9,7 @@ import Dashboard from './src/screens/Dashboard';
 import CoinDetail from './src/screens/CoinDetail';
 import Trades from './src/screens/Trades';
 import Settings from './src/screens/Settings';
+import Assistant from './src/screens/Assistant';
 
 // RTL: يتطلب إعادة تشغيل التطبيق مرة واحدة بعد أول تشغيل
 I18nManager.allowRTL(true);
@@ -23,6 +24,7 @@ function Tabs() {
   return (
     <Tab.Navigator screenOptions={{ ...hdr, tabBarStyle: { backgroundColor: C.card, borderTopColor: C.border }, tabBarActiveTintColor: C.green }}>
       <Tab.Screen name="Market" component={Dashboard} options={{ title: 'السوق', ...icon('📊') }} />
+      <Tab.Screen name="AI" component={Assistant} options={{ title: 'المستشار', ...icon('🤖') }} />
       <Tab.Screen name="Trades" component={Trades} options={{ title: 'الصفقات', ...icon('💼') }} />
       <Tab.Screen name="Settings" component={Settings} options={{ title: 'الإعدادات', ...icon('⚙️') }} />
     </Tab.Navigator>

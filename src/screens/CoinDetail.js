@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, Alert, Dimensions } from 'rea
 import Svg, { Polyline } from 'react-native-svg';
 import { useStore } from '../store/useStore';
 import { fetchKlines } from '../services/api';
+import { backtest } from '../utils/indicators';
 import { C, fmt, pc } from '../theme';
 import { Card, Chip, Row, dirInfo } from '../components';
 
@@ -10,6 +11,7 @@ export default function CoinDetail({ route }) {
   const { key } = route.params;
   const t = useStore(s => s.tickers[key]); const a = useStore(s => s.analysis[key]);
   const openTrade = useStore(s => s.openTrade);
+  const [bt, setBt] = useState(null); const [btLoading, setBtLoading] = useState(false);
   const [tf, setTf] = useState('1h'); const [closes, setCloses] = useState([]);
 
   useEffect(() => { if (t) fetchKlines(t.exchange, t.symbol, tf, 100).then(k => setCloses(k.map(x => x.c))).catch(() => {}); }, [tf, key]);
@@ -20,6 +22,12 @@ export default function CoinDetail({ route }) {
   const pts = closes.map((c, i) => `${(i/(closes.length-1))*W},${H - ((c-mn)/(mx-mn || 1))*H}`).join(' ');
   const up = closes.length > 0 && closes[closes.length-1] >= closes[0];
   const d = dirInfo(a?.direction);
+
+  const runBt = async () => {
+    setBtLoading(true);
+    try { setBt(backtest(await fetchKlines(t.exchange, t.symbol, tf, 1000))); } catch (e) { Alert.alert('تعذر الاختبار'); }
+    setBtLoading(false);
+  };
 
   const open = () => {
     if (!a?.levels) return Alert.alert('لا توجد توصية', 'التوقع الحالي محايد.');
@@ -54,8 +62,19 @@ export default function CoinDetail({ route }) {
         <Text style={{ color: C.text, fontWeight: '700', marginBottom: 4 }}>التحليل الفني</Text>
         <Row a="RSI" b={`${a.rsi.toFixed(1)} ${a.rsi > 70 ? '(إشباع شراء)' : a.rsi < 30 ? '(إشباع بيع)' : ''}`} />
         <Row a="EMA 20" b={fmt(a.e20)} /><Row a="EMA 50" b={fmt(a.e50)} /><Row a="EMA 200" b={fmt(a.e200)} />
+        <Row a="ADX (قوة الاتجاه)" b={`${a.adx.toFixed(0)} ${a.adx > 25 ? '(قوي)' : a.adx < 20 ? '(عرضي)' : ''}`} />
+        <Row a="تأكيد الإطار الأعلى" b={a.mtf === 'agree' ? 'متوافق ✅' : a.mtf === 'conflict' ? 'متعارض ⚠️' : '—'} />
         <Row a="تقاطع MACD" b={a.macdCross} /><Row a="الحجم أعلى من المتوسط" b={a.volHigh ? 'نعم' : 'لا'} />
       </Card>}
+
+      <Card style={{ marginTop: 12 }}>
+        <Text style={{ color: C.text, fontWeight: '700', marginBottom: 6 }}>الاختبار التاريخي ({tf})</Text>
+        {bt && <Row a={`نسبة نجاح الإشارات السابقة (${bt.n} إشارة)`} b={`${bt.winRate.toFixed(1)}%`} bColor={bt.winRate >= 50 ? C.green : C.red} />}
+        {bt && <Text style={{ color: C.dim, fontSize: 12 }}>نقطة التعادل لهذه الأهداف ≈ 44%. أقل منها تعني أن الإشارة غير مجدية على هذه العملة.</Text>}
+        <TouchableOpacity onPress={runBt} style={{ marginTop: 8, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: C.border, alignItems: 'center' }}>
+          <Text style={{ color: C.text }}>{btLoading ? 'جاري الاختبار...' : 'اختبر دقة الخوارزمية على هذه العملة'}</Text>
+        </TouchableOpacity>
+      </Card>
 
       <TouchableOpacity onPress={open} style={{ backgroundColor: C.green, borderRadius: 14, padding: 16, marginTop: 16, alignItems: 'center' }}>
         <Text style={{ color: '#000', fontSize: 17, fontWeight: '800' }}>فتح صفقة وهمية</Text>

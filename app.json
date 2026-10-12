@@ -2,8 +2,16 @@
   "expo": {
     "name": "محلل الكريبتو",
     "slug": "crypto-analytics",
+    "owner": "alidli2",
     "version": "1.0.0",
+    "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "android": { "package": "com.alidli.cryptoanalytics" }
+    "backgroundColor": "#0B0F14",
+    "splash": { "backgroundColor": "#0B0F14", "resizeMode": "contain" },
+    "android": {
+      "package": "com.alidli.cryptoanalytics",
+      "backgroundColor": "#0B0F14"
+    },
+    "extra": { "eas": { "projectId": "f774d458-e722-4e00-9d7e-d15e51dc73e1" } }
   }
 }
