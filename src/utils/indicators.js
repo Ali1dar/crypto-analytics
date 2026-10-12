@@ -100,20 +100,32 @@ export function analyze(klines, t, htf) {
            volHigh: s.volHigh, safety: safetyScore(t.volume, t.change), time: Date.now() };
 }
 
-// اختبار تاريخي: كم مرة حققت الإشارة الهدف قبل الوقف في الماضي (مع افتراض الخسارة إذا لمس الاثنين بنفس الشمعة)
+// اختبار تاريخي: أهداف 1.5 ATR مقابل وقف 1.2 ATR، مع خصم رسوم 0.1% لكل جهة.
+// إذا لمست الشمعة الهدف والوقف معاً تُحسب خسارة (تحفظ).
 export function backtest(k, horizon = 24, minConf = 50) {
-  let w = 0, l = 0;
+  const FEE = 0.001;
+  const side = { up: { w: 0, l: 0 }, down: { w: 0, l: 0 } };
+  let w = 0, l = 0, sum = 0, gp = 0, gl = 0, streak = 0, maxStreak = 0;
   for (let i = 210; i < k.length - horizon; i += 2) {
-    const s = score(k.slice(0, i+1));
-    if (s.direction === 'neutral' || s.conf < minConf) continue;
-    const d = s.direction === 'up' ? 1 : -1, atr = atrOf(k.slice(0, i+1)), e = s.price;
+    const win = k.slice(Math.max(0, i - 300), i + 1);
+    const sc = score(win);
+    if (sc.direction === 'neutral' || sc.conf < minConf) continue;
+    const d = sc.direction === 'up' ? 1 : -1, atr = atrOf(win), e = sc.price;
     const tp = e + d*1.5*atr, sl = e - d*1.2*atr;
-    for (let j = i+1; j <= i+horizon; j++) {
+    let res = 0;
+    for (let j = i + 1; j <= i + horizon; j++) {
       const hitTp = d > 0 ? k[j].h >= tp : k[j].l <= tp;
       const hitSl = d > 0 ? k[j].l <= sl : k[j].h >= sl;
-      if (hitSl) { l++; break; }
-      if (hitTp) { w++; break; }
+      if (hitSl) { res = -1; break; }
+      if (hitTp) { res = 1; break; }
     }
+    if (!res) continue;
+    const r = ((res === 1 ? 1.5 : -1.2) * atr - 2*FEE*e) / atr;   // الربح بوحدات ATR بعد الرسوم
+    sum += r;
+    if (res === 1) { w++; gp += r; side[sc.direction].w++; streak = 0; }
+    else { l++; gl += -r; side[sc.direction].l++; streak++; maxStreak = Math.max(maxStreak, streak); }
   }
-  return { n: w + l, winRate: w + l ? (w/(w+l))*100 : 0 };
+  const n = w + l, pct = (a) => (a.w + a.l ? a.w/(a.w + a.l)*100 : 0);
+  return { n, winRate: n ? w/n*100 : 0, exp: n ? sum/n : 0, pf: gl ? gp/gl : (gp ? 9.99 : 0), maxStreak,
+           longWR: pct(side.up), longN: side.up.w + side.up.l, shortWR: pct(side.down), shortN: side.down.w + side.down.l };
 }

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fetchBinanceTickers, fetchBybitTickers, fetchKlines } from '../services/api';
-import { analyze } from '../utils/indicators';
+import { analyze, backtest } from '../utils/indicators';
 
 const HT = { '15m': '1h', '1h': '4h', '4h': '1d' };
 const pnlOf = (t, price) => (price - t.entry) / t.entry * t.size * (t.side === 'long' ? 1 : -1);
@@ -10,9 +10,9 @@ const pnlOf = (t, price) => (price - t.entry) / t.entry * t.size * (t.side === '
 export const useStore = create(persist((set, get) => ({
   settings: { capital: 10000, minConfidence: 70, interval: '1h', proxyUrl: '', token: '' },
   trades: [],
-  tickers: {}, analysis: {}, loading: false,
+  tickers: {}, analysis: {}, loading: false, scan: {}, scanning: false,
 
-  setSettings: (p) => set(s => ({ settings: { ...s.settings, ...p } })),
+  setSettings: (p) => set(s => ({ settings: { ...s.settings, ...p }, ...(p.interval ? { scan: {} } : {}) })),
   resetTrades: () => set({ trades: [] }),
 
   refreshTickers: async () => {
@@ -35,6 +35,23 @@ export const useStore = create(persist((set, get) => ({
       } catch (e) {}
     }));
     set(s => ({ analysis: { ...s.analysis, ...out }, loading: false }));
+  },
+
+  runScan: async (n = 15) => {
+    if (get().scanning) return;
+    set({ scanning: true, scan: {} });
+    const { tickers, settings } = get();
+    const top = Object.values(tickers).sort((a, b) => b.volume - a.volume);
+    const pick = ['Binance', 'Bybit'].flatMap(ex => top.filter(t => t.exchange === ex).slice(0, n));
+    for (const t of pick) {
+      try {
+        const k = await fetchKlines(t.exchange, t.symbol, settings.interval, 1000);
+        const r = backtest(k);
+        set(st => ({ scan: { ...st.scan, [t.key]: r } }));
+      } catch (e) {}
+      await new Promise(r => setTimeout(r, 0));
+    }
+    set({ scanning: false });
   },
 
   openTrade: ({ key, symbol, exchange, side, entry, tp, sl }) => {

@@ -7,6 +7,12 @@ import { backtest } from '../utils/indicators';
 import { C, fmt, pc } from '../theme';
 import { Card, Chip, Row, dirInfo } from '../components';
 
+const verdict = (b) =>
+  b.n < 15 ? { t: `⚠️ عينة صغيرة (${b.n} صفقة): النتيجة غير موثوقة. جرّب إطاراً زمنياً آخر.`, c: C.yellow }
+  : b.exp > 0.15 && b.pf > 1.2 ? { t: '✅ الإشارات مجدية تاريخياً على هذه العملة وهذا الإطار.', c: C.green }
+  : b.exp > 0 ? { t: '🟡 هامش ربح ضعيف. استخدمها بحذر وبحجم صغير.', c: C.yellow }
+  : { t: '⛔ الإشارات خاسرة تاريخياً هنا. تجنب الاعتماد عليها.', c: C.red };
+
 export default function CoinDetail({ route }) {
   const { key } = route.params;
   const t = useStore(s => s.tickers[key]); const a = useStore(s => s.analysis[key]);
@@ -69,8 +75,14 @@ export default function CoinDetail({ route }) {
 
       <Card style={{ marginTop: 12 }}>
         <Text style={{ color: C.text, fontWeight: '700', marginBottom: 6 }}>الاختبار التاريخي ({tf})</Text>
-        {bt && <Row a={`نسبة نجاح الإشارات السابقة (${bt.n} إشارة)`} b={`${bt.winRate.toFixed(1)}%`} bColor={bt.winRate >= 50 ? C.green : C.red} />}
-        {bt && <Text style={{ color: C.dim, fontSize: 12 }}>نقطة التعادل لهذه الأهداف ≈ 44%. أقل منها تعني أن الإشارة غير مجدية على هذه العملة.</Text>}
+        {bt && <>
+          <Row a={`نسبة النجاح (${bt.n} صفقة)`} b={`${bt.winRate.toFixed(1)}%`} bColor={bt.winRate >= 44.4 ? C.green : C.red} />
+          <Row a="متوسط الربح للصفقة بعد الرسوم" b={`${bt.exp >= 0 ? '+' : ''}${bt.exp.toFixed(2)} ATR`} bColor={bt.exp > 0 ? C.green : C.red} />
+          <Row a="معامل الربح (PF)" b={bt.pf.toFixed(2)} bColor={bt.pf > 1.2 ? C.green : C.dim} />
+          <Row a="Long / Short" b={`${bt.longWR.toFixed(0)}% (${bt.longN}) / ${bt.shortWR.toFixed(0)}% (${bt.shortN})`} />
+          <Row a="أطول سلسلة خسائر" b={String(bt.maxStreak)} />
+          <Text style={{ color: verdict(bt).c, marginTop: 6, fontWeight: '700' }}>{verdict(bt).t}</Text>
+        </>}
         <TouchableOpacity onPress={runBt} style={{ marginTop: 8, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: C.border, alignItems: 'center' }}>
           <Text style={{ color: C.text }}>{btLoading ? 'جاري الاختبار...' : 'اختبر دقة الخوارزمية على هذه العملة'}</Text>
         </TouchableOpacity>
