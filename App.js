@@ -1,0 +1,50 @@
+import React, { useEffect } from 'react';
+import { I18nManager, Text, StatusBar } from 'react-native';
+import { NavigationContainer, DarkTheme } from '@react-navigation/native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useStore } from './src/store/useStore';
+import { C } from './src/theme';
+import Dashboard from './src/screens/Dashboard';
+import CoinDetail from './src/screens/CoinDetail';
+import Trades from './src/screens/Trades';
+import Settings from './src/screens/Settings';
+
+// RTL: يتطلب إعادة تشغيل التطبيق مرة واحدة بعد أول تشغيل
+I18nManager.allowRTL(true);
+I18nManager.forceRTL(true);
+
+const Tab = createBottomTabNavigator();
+const Stack = createNativeStackNavigator();
+const hdr = { headerStyle: { backgroundColor: C.bg }, headerTintColor: C.text };
+const icon = (e) => ({ tabBarIcon: () => <Text>{e}</Text> });
+
+function Tabs() {
+  return (
+    <Tab.Navigator screenOptions={{ ...hdr, tabBarStyle: { backgroundColor: C.card, borderTopColor: C.border }, tabBarActiveTintColor: C.green }}>
+      <Tab.Screen name="Market" component={Dashboard} options={{ title: 'السوق', ...icon('📊') }} />
+      <Tab.Screen name="Trades" component={Trades} options={{ title: 'الصفقات', ...icon('💼') }} />
+      <Tab.Screen name="Settings" component={Settings} options={{ title: 'الإعدادات', ...icon('⚙️') }} />
+    </Tab.Navigator>
+  );
+}
+
+export default function App() {
+  const { refreshTickers, analyzeTop } = useStore();
+  useEffect(() => {
+    let n = 0;
+    (async () => { await refreshTickers(); analyzeTop(); })();
+    const id = setInterval(() => { refreshTickers(); if (++n % 12 === 0) analyzeTop(); }, 10000); // أسعار كل 10ث، تحليل كل دقيقتين
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <NavigationContainer theme={{ ...DarkTheme, colors: { ...DarkTheme.colors, background: C.bg } }}>
+      <StatusBar barStyle="light-content" />
+      <Stack.Navigator screenOptions={hdr}>
+        <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
+        <Stack.Screen name="Coin" component={CoinDetail} options={{ title: 'تحليل العملة' }} />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+}
