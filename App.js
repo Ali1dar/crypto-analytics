@@ -32,11 +32,11 @@ function Tabs() {
 }
 
 export default function App() {
-  const { refreshTickers, analyzeTop } = useStore();
+  const { refreshTickers, analyzeTop, refreshFng } = useStore();
   useEffect(() => {
     let n = 0;
-    (async () => { await refreshTickers(); analyzeTop(); })();
-    const id = setInterval(() => { refreshTickers(); if (++n % 12 === 0) analyzeTop(); }, 10000); // أسعار كل 10ث، تحليل كل دقيقتين
+    (async () => { await refreshTickers(); analyzeTop(); })(); refreshFng();
+    const id = setInterval(() => { refreshTickers(); if (++n % 12 === 0) analyzeTop(); if (n % 30 === 0) refreshFng(); }, 10000); // أسعار كل 10ث، تحليل كل دقيقتين
     return () => clearInterval(id);
   }, []);
 

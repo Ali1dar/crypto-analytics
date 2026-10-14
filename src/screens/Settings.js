@@ -17,9 +17,16 @@ export default function Settings() {
           style={{ backgroundColor: C.bg, color: C.text, borderRadius: 10, padding: 10, borderWidth: 1, borderColor: C.border }} />
       </Card>
       <Card style={{ marginBottom: 12 }}>
-        <Text style={lab}>الحد الأدنى لنسبة الثقة</Text>
+        <Text style={lab}>الحد الأدنى لاحتمال النجاح</Text>
+        <Text style={{ color: C.dim, fontSize: 12, marginBottom: 8 }}>احتمال النموذج الواقعي يتراوح عادة بين 55% و70%.</Text>
         <View style={{ flexDirection: 'row' }}>
-          {[50, 60, 70, 80].map(n => <Chip key={n} label={n + '%'} active={settings.minConfidence === n} onPress={() => setSettings({ minConfidence: n })} />)}
+          {[58, 60, 65, 70].map(n => <Chip key={n} label={n + '%'} active={settings.minConfidence === n} onPress={() => setSettings({ minConfidence: n })} />)}
+        </View>
+      </Card>
+      <Card style={{ marginBottom: 12 }}>
+        <Text style={lab}>نسبة المخاطرة لكل صفقة من الرصيد</Text>
+        <View style={{ flexDirection: 'row' }}>
+          {[0.5, 1, 2].map(n => <Chip key={n} label={n + '%'} active={(settings.riskPct || 1) === n} onPress={() => setSettings({ riskPct: n })} />)}
         </View>
       </Card>
       <Card style={{ marginBottom: 12 }}>

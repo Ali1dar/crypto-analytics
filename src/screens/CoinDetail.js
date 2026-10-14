@@ -3,43 +3,60 @@ import { View, Text, ScrollView, TouchableOpacity, Alert, Dimensions } from 'rea
 import Svg, { Polyline } from 'react-native-svg';
 import { useStore } from '../store/useStore';
 import { fetchKlines } from '../services/api';
-import { backtest } from '../utils/indicators';
 import { C, fmt, pc } from '../theme';
 import { Card, Chip, Row, dirInfo } from '../components';
 
-const verdict = (b) =>
-  b.n < 15 ? { t: `⚠️ عينة صغيرة (${b.n} صفقة): النتيجة غير موثوقة. جرّب إطاراً زمنياً آخر.`, c: C.yellow }
-  : b.exp > 0.15 && b.pf > 1.2 ? { t: '✅ الإشارات مجدية تاريخياً على هذه العملة وهذا الإطار.', c: C.green }
-  : b.exp > 0 ? { t: '🟡 هامش ربح ضعيف. استخدمها بحذر وبحجم صغير.', c: C.yellow }
-  : { t: '⛔ الإشارات خاسرة تاريخياً هنا. تجنب الاعتماد عليها.', c: C.red };
+const MIN = { '15m': 15, '1h': 60, '4h': 240 };
+const usd = (n) => `$${n.toFixed(2)}`;
 
-export default function CoinDetail({ route }) {
+export default function CoinDetail({ route, navigation }) {
   const { key } = route.params;
-  const t = useStore(s => s.tickers[key]); const a = useStore(s => s.analysis[key]);
-  const openTrade = useStore(s => s.openTrade);
-  const [bt, setBt] = useState(null); const [btLoading, setBtLoading] = useState(false);
+  const t = useStore(s => s.tickers[key]); const a = useStore(s => s.analysis[key]); const d = useStore(s => s.deep[key]);
+  const busy = useStore(s => !!s.deepBusy[key]); const fav = useStore(s => s.favorites.includes(key));
+  const settings = useStore(s => s.settings); const fng = useStore(s => s.fng);
+  const { deepAnalyze, openTrade, toggleFav, balance } = useStore.getState();
   const [tf, setTf] = useState('1h'); const [closes, setCloses] = useState([]);
+  const [ticket, setTicket] = useState(false); const [side, setSide] = useState(null); const [risk, setRisk] = useState(settings.riskPct || 1);
 
+  useEffect(() => { navigation.setOptions({ headerRight: () => <Text style={{ fontSize: 22 }} onPress={() => toggleFav(key)}>{fav ? '⭐' : '☆'}</Text> }); }, [fav]);
+  useEffect(() => { if (!d && t) deepAnalyze(key); }, [key, !!t]);
   useEffect(() => { if (t) fetchKlines(t.exchange, t.symbol, tf, 100).then(k => setCloses(k.map(x => x.c))).catch(() => {}); }, [tf, key]);
   if (!t) return null;
 
   const W = Dimensions.get('window').width - 56, H = 160;
   const mn = Math.min(...closes), mx = Math.max(...closes);
-  const pts = closes.map((c, i) => `${(i/(closes.length-1))*W},${H - ((c-mn)/(mx-mn || 1))*H}`).join(' ');
-  const up = closes.length > 0 && closes[closes.length-1] >= closes[0];
-  const d = dirInfo(a?.direction);
+  const pts = closes.map((c, i) => `${(i / (closes.length - 1)) * W},${H - ((c - mn) / (mx - mn || 1)) * H}`).join(' ');
+  const up = closes.length > 0 && closes[closes.length - 1] >= closes[0];
 
-  const runBt = async () => {
-    setBtLoading(true);
-    try { setBt(backtest(await fetchKlines(t.exchange, t.symbol, tf, 1000))); } catch (e) { Alert.alert('تعذر الاختبار'); }
-    setBtLoading(false);
-  };
+  const dir = d ? (d.validated ? d.direction : 'neutral') : a?.direction;
+  const dd = dirInfo(dir);
+  const sideEff = side || (dir === 'down' ? 'short' : 'long');
 
-  const open = () => {
-    if (!a?.levels) return Alert.alert('لا توجد توصية', 'التوقع الحالي محايد.');
-    openTrade({ key, symbol: t.symbol, exchange: t.exchange, side: a.direction === 'up' ? 'long' : 'short',
-                entry: t.price, tp: a.levels.tp1, sl: a.levels.sl });
-    Alert.alert('تم', 'تم فتح صفقة وهمية. تابعها من تبويب الصفقات.');
+  // ===== حساب تذكرة الصفقة =====
+  const atrv = d?.atrNow ?? a?.atr; const price = t.price; const kk = sideEff === 'long' ? 1 : -1;
+  const lv = atrv ? { tp1: price + kk * 1.5 * atrv, tp2: price + kk * 3 * atrv, sl: price - kk * 1.5 * atrv } : null;
+  const bal = balance(); const riskUsd = bal * risk / 100;
+  const slDist = lv ? Math.abs(price - lv.sl) / price : 0;
+  const size = lv ? Math.min(riskUsd / slDist, bal * 10) : 0;
+  const realRisk = size * slDist, lev = size / bal, fees = 2 * size * 0.001;
+  const gain1 = lv ? 0.5 * size * Math.abs(lv.tp1 - price) / price : 0;
+  const gain2 = lv ? gain1 + 0.5 * size * Math.abs(lv.tp2 - price) / price : 0;
+  const p = d ? (sideEff === 'long' ? d.pUp : 1 - d.pUp) : null;
+  const ev = p != null ? p * realRisk - (1 - p) * realRisk - fees : null;
+  const warns = [];
+  if (!d) warns.push('لم يكتمل التحليل العميق بعد.');
+  else if (!d.validated) warns.push('النموذج لم يثبت دقته على هذه العملة تاريخياً.');
+  if (p != null && p < 0.5) warns.push('النموذج يميل عكس اتجاه الصفقة المختارة.');
+  if (a?.mtf === 'conflict') warns.push('الإطار الزمني الأعلى يعاكس الاتجاه.');
+  if (a?.safety.level === 'weak') warns.push('سيولة ضعيفة أو تقلب مرتفع.');
+  if (d && d.volRank > 85) warns.push('التقلب الحالي أعلى من 85% من تاريخ العملة.');
+  if (lev > 3) warns.push(`الحجم يتطلب رافعة ${lev.toFixed(1)}x.`);
+  if (fng && (fng.value < 20 || fng.value > 80)) warns.push('السوق في حالة ' + (fng.value < 20 ? 'خوف شديد' : 'طمع شديد') + '.');
+
+  const confirm = () => {
+    if (!lv) return Alert.alert('لا توجد بيانات تقلب كافية بعد.');
+    openTrade({ key, symbol: t.symbol, exchange: t.exchange, side: sideEff, entry: price, tp: lv.tp1, tp2: lv.tp2, sl: lv.sl, size, prob: p });
+    setTicket(false); Alert.alert('تم', 'فُتحت الصفقة. تابعها من تبويب الصفقات.');
   };
 
   return (
@@ -48,49 +65,80 @@ export default function CoinDetail({ route }) {
       <Text style={{ color: t.change >= 0 ? C.green : C.red, fontSize: 20, marginBottom: 10 }}>${fmt(t.price)}  {pc(t.change)}</Text>
       <Card>
         <View style={{ flexDirection: 'row', marginBottom: 10 }}>
-          {['15m','1h','4h','1d'].map(x => <Chip key={x} label={x === '1d' ? '1D' : x} active={tf===x} onPress={() => setTf(x)} />)}
+          {['15m', '1h', '4h', '1d'].map(x => <Chip key={x} label={x === '1d' ? '1D' : x} active={tf === x} onPress={() => setTf(x)} />)}
         </View>
         {closes.length > 1 && <Svg width={W} height={H}><Polyline points={pts} fill="none" stroke={up ? C.green : C.red} strokeWidth="2" /></Svg>}
       </Card>
 
       <Card style={{ marginTop: 12 }}>
-        <Text style={{ color: d.c, fontSize: 18, fontWeight: '700', marginBottom: 6 }}>التوقع: {d.t}  ·  الثقة {a ? a.confidence : '—'}%</Text>
+        <Text style={{ color: dd.c, fontSize: 18, fontWeight: '700', marginBottom: 6 }}>
+          التوقع: {dd.t}{d ? `  ·  الاحتمال ${d.prob.toFixed(0)}%` : a ? `  ·  ${a.confidence}%` : ''}
+        </Text>
         {a && <Row a="مؤشر الأمان" b={`${a.safety.icon} ${a.safety.label}`} />}
-        {a?.levels ? <>
-          <Row a="سعر الدخول" b={fmt(a.levels.entry)} />
-          <Row a="الهدف الأول TP1" b={fmt(a.levels.tp1)} bColor={C.green} />
-          <Row a="الهدف الثاني TP2" b={fmt(a.levels.tp2)} bColor={C.green} />
-          <Row a="وقف الخسارة SL" b={fmt(a.levels.sl)} bColor={C.red} />
-        </> : <Text style={{ color: C.dim }}>لا توجد مستويات: الإشارة محايدة.</Text>}
+        {d && <Row a="احتمال الصعود الآن" b={`${(d.pUp * 100).toFixed(0)}%`} bColor={d.pUp > 0.5 ? C.green : C.red} />}
+        {busy && <Text style={{ color: C.yellow, marginTop: 6 }}>🧠 جاري تحليل التاريخ الطويل...</Text>}
       </Card>
 
+      {d && <Card style={{ marginTop: 12 }}>
+        <Text style={{ color: C.text, fontWeight: '700', marginBottom: 4 }}>🧠 التحليل العميق ({d.interval})</Text>
+        <Row a="التاريخ المحلل" b={`${d.candles} شمعة ≈ ${Math.round(d.candles * MIN[d.interval] / 1440)} يوم`} />
+        <Row a="دقة النموذج على بيانات لم يرها" b={`${d.precision.toFixed(1)}% (${d.n} إشارة)`} bColor={d.precision >= 55 ? C.green : C.red} />
+        <Row a="التخمين العشوائي المقابل" b={`${d.baseline.toFixed(0)}%`} />
+        <Row a="متوسط الربح للصفقة بعد الرسوم" b={`${d.exp >= 0 ? '+' : ''}${d.exp.toFixed(2)} R`} bColor={d.exp > 0 ? C.green : C.red} />
+        <Row a="نسبة الشموع التي أصدر فيها إشارة" b={`${d.coverage.toFixed(0)}%`} />
+        <Row a="التقلب الحالي ATR" b={`${d.atrPct.toFixed(2)}% (أعلى من ${d.volRank.toFixed(0)}% من التاريخ)`} />
+        <Row a={`متوسط حركة ${d.H} شمعة`} b={`${d.avgMove.toFixed(2)}%`} />
+        <Text style={{ color: d.validated ? C.green : C.red, marginTop: 6, fontWeight: '700' }}>
+          {d.validated ? '✅ النموذج حقق دقة مقبولة خارج العينة على هذه العملة.' : '⛔ لم يتفوق النموذج بوضوح هنا، فلا تعتمد على توقعه.'}
+        </Text>
+        <Text style={{ color: C.dim, fontSize: 12, marginTop: 4 }}>الاختبار على آخر 30% من التاريخ لم يُستخدم في التدريب. الأداء السابق لا يضمن المستقبل.</Text>
+        <TouchableOpacity onPress={() => deepAnalyze(key, 4)} style={{ marginTop: 8, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: C.border, alignItems: 'center' }}>
+          <Text style={{ color: C.text }}>{busy ? 'جاري التحليل...' : 'إعادة التحليل بتاريخ أطول'}</Text>
+        </TouchableOpacity>
+      </Card>}
+
       {a && <Card style={{ marginTop: 12 }}>
-        <Text style={{ color: C.text, fontWeight: '700', marginBottom: 4 }}>التحليل الفني</Text>
+        <Text style={{ color: C.text, fontWeight: '700', marginBottom: 4 }}>المؤشرات الفنية</Text>
         <Row a="RSI" b={`${a.rsi.toFixed(1)} ${a.rsi > 70 ? '(إشباع شراء)' : a.rsi < 30 ? '(إشباع بيع)' : ''}`} />
-        <Row a="EMA 20" b={fmt(a.e20)} /><Row a="EMA 50" b={fmt(a.e50)} /><Row a="EMA 200" b={fmt(a.e200)} />
-        <Row a="ADX (قوة الاتجاه)" b={`${a.adx.toFixed(0)} ${a.adx > 25 ? '(قوي)' : a.adx < 20 ? '(عرضي)' : ''}`} />
-        <Row a="تأكيد الإطار الأعلى" b={a.mtf === 'agree' ? 'متوافق ✅' : a.mtf === 'conflict' ? 'متعارض ⚠️' : '—'} />
+        <Row a="EMA 20 / 50 / 200" b={`${fmt(a.e20)} / ${fmt(a.e50)} / ${fmt(a.e200)}`} />
+        <Row a="ADX" b={`${a.adx.toFixed(0)} ${a.adx > 25 ? '(قوي)' : a.adx < 20 ? '(عرضي)' : ''}`} />
+        <Row a="الإطار الأعلى" b={a.mtf === 'agree' ? 'متوافق ✅' : a.mtf === 'conflict' ? 'متعارض ⚠️' : '—'} />
         <Row a="تقاطع MACD" b={a.macdCross} /><Row a="الحجم أعلى من المتوسط" b={a.volHigh ? 'نعم' : 'لا'} />
       </Card>}
 
-      <Card style={{ marginTop: 12 }}>
-        <Text style={{ color: C.text, fontWeight: '700', marginBottom: 6 }}>الاختبار التاريخي ({tf})</Text>
-        {bt && <>
-          <Row a={`نسبة النجاح (${bt.n} صفقة)`} b={`${bt.winRate.toFixed(1)}%`} bColor={bt.winRate >= 44.4 ? C.green : C.red} />
-          <Row a="متوسط الربح للصفقة بعد الرسوم" b={`${bt.exp >= 0 ? '+' : ''}${bt.exp.toFixed(2)} ATR`} bColor={bt.exp > 0 ? C.green : C.red} />
-          <Row a="معامل الربح (PF)" b={bt.pf.toFixed(2)} bColor={bt.pf > 1.2 ? C.green : C.dim} />
-          <Row a="Long / Short" b={`${bt.longWR.toFixed(0)}% (${bt.longN}) / ${bt.shortWR.toFixed(0)}% (${bt.shortN})`} />
-          <Row a="أطول سلسلة خسائر" b={String(bt.maxStreak)} />
-          <Text style={{ color: verdict(bt).c, marginTop: 6, fontWeight: '700' }}>{verdict(bt).t}</Text>
-        </>}
-        <TouchableOpacity onPress={runBt} style={{ marginTop: 8, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: C.border, alignItems: 'center' }}>
-          <Text style={{ color: C.text }}>{btLoading ? 'جاري الاختبار...' : 'اختبر دقة الخوارزمية على هذه العملة'}</Text>
+      {!ticket ? (
+        <TouchableOpacity onPress={() => setTicket(true)} style={{ backgroundColor: C.green, borderRadius: 14, padding: 16, marginTop: 16, alignItems: 'center' }}>
+          <Text style={{ color: '#000', fontSize: 17, fontWeight: '800' }}>تجهيز صفقة وهمية</Text>
         </TouchableOpacity>
-      </Card>
-
-      <TouchableOpacity onPress={open} style={{ backgroundColor: C.green, borderRadius: 14, padding: 16, marginTop: 16, alignItems: 'center' }}>
-        <Text style={{ color: '#000', fontSize: 17, fontWeight: '800' }}>فتح صفقة وهمية</Text>
-      </TouchableOpacity>
+      ) : (
+        <Card style={{ marginTop: 16, borderColor: C.green }}>
+          <Text style={{ color: C.text, fontWeight: '800', fontSize: 17, marginBottom: 8 }}>🧾 تذكرة الصفقة</Text>
+          <View style={{ flexDirection: 'row', marginBottom: 6 }}>
+            <Chip label="Long شراء" active={sideEff === 'long'} onPress={() => setSide('long')} />
+            <Chip label="Short بيع" active={sideEff === 'short'} onPress={() => setSide('short')} />
+          </View>
+          <Text style={{ color: C.dim, marginBottom: 4 }}>المخاطرة من الرصيد:</Text>
+          <View style={{ flexDirection: 'row', marginBottom: 6 }}>
+            {[0.5, 1, 2].map(n => <Chip key={n} label={n + '%'} active={risk === n} onPress={() => setRisk(n)} />)}
+          </View>
+          {lv ? <>
+            <Row a="سعر الدخول" b={fmt(price)} />
+            <Row a="الهدف الأول (نصف الصفقة)" b={`${fmt(lv.tp1)}  (+${usd(gain1)})`} bColor={C.green} />
+            <Row a="الهدف الثاني (الباقي)" b={`${fmt(lv.tp2)}  (+${usd(gain2)})`} bColor={C.green} />
+            <Row a="وقف الخسارة" b={`${fmt(lv.sl)}  (-${usd(realRisk)})`} bColor={C.red} />
+            <Row a="حجم الصفقة" b={`${usd(size)}  (${lev.toFixed(1)}x)`} />
+            <Row a="نسبة العائد للمخاطرة" b={`1 : ${(gain2 / realRisk).toFixed(1)}`} />
+            <Row a="الرسوم المتوقعة" b={usd(fees)} />
+            {ev != null && <Row a="القيمة المتوقعة (EV)" b={`${ev >= 0 ? '+' : ''}${usd(ev)}`} bColor={ev > 0 ? C.green : C.red} />}
+            <Text style={{ color: C.dim, fontSize: 12, marginTop: 4 }}>عند الهدف الأول يُغلق نصف الصفقة ويُنقل الوقف لنقطة الدخول (لا خسارة على الباقي).</Text>
+            {warns.map((w, i) => <Text key={i} style={{ color: C.yellow, marginTop: 4 }}>⚠️ {w}</Text>)}
+            <TouchableOpacity onPress={confirm} style={{ backgroundColor: C.green, borderRadius: 12, padding: 14, marginTop: 12, alignItems: 'center' }}>
+              <Text style={{ color: '#000', fontWeight: '800' }}>تأكيد فتح الصفقة</Text>
+            </TouchableOpacity>
+          </> : <Text style={{ color: C.dim }}>انتظر اكتمال التحليل لحساب مستويات الدخول.</Text>}
+          <TouchableOpacity onPress={() => setTicket(false)} style={{ marginTop: 8, alignItems: 'center', padding: 8 }}><Text style={{ color: C.dim }}>إلغاء</Text></TouchableOpacity>
+        </Card>
+      )}
     </ScrollView>
   );
 }

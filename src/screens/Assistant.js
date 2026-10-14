@@ -12,9 +12,10 @@ function buildContext() {
     .map(t => ({ t, a: s.analysis[t.key] })).sort((x, y) => y.a.confidence - x.a.confidence).slice(0, 10)
     .map(({ t, a }) => ({ coin: t.base, exchange: t.exchange, price: t.price, change24h: +t.change.toFixed(2),
       volume24h: Math.round(t.volume), signal: a.direction, confidence: a.confidence, safety: a.safety.label,
+      model: (() => { const d = s.deep[t.key]; return d && { probUp: +d.pUp.toFixed(2), validated: d.validated, oosPrecision: +d.precision.toFixed(1), oosTrades: d.n, volatilityRank: +d.volRank.toFixed(0) }; })(),
       rsi: +a.rsi.toFixed(1), adx: +a.adx.toFixed(0), higherTimeframe: a.mtf,
       levels: a.levels && { tp1: a.levels.tp1, tp2: a.levels.tp2, sl: a.levels.sl } }));
-  return { timeframe: s.settings.interval, virtualBalance: +s.balance().toFixed(2),
+  return { timeframe: s.settings.interval, fearGreed: s.fng, virtualBalance: +s.balance().toFixed(2),
     openTrades: s.trades.filter(x => x.status === 'open').map(x => ({ symbol: x.symbol, side: x.side, entry: x.entry, tp: x.tp, sl: x.sl, pnl: +s.livePnl(x).toFixed(2) })),
     topSignals: top };
 }

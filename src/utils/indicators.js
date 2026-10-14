@@ -95,7 +95,7 @@ export function analyze(klines, t, htf) {
     levels = { entry:t.price, tp1:t.price + d*1.5*atr, tp2:t.price + d*3*atr, sl:t.price - d*1.2*atr };
   }
   return { direction: s.direction, confidence: conf, levels, rsi: s.rsi, e20: s.e20, e50: s.e50, e200: s.e200,
-           adx: s.adx, boll: s.boll, mtf,
+           adx: s.adx, boll: s.boll, mtf, atr,
            macdCross: s.macd.crossUp ? 'إيجابي' : s.macd.crossDown ? 'سلبي' : 'لا يوجد',
            volHigh: s.volHigh, safety: safetyScore(t.volume, t.change), time: Date.now() };
 }
