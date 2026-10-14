@@ -49,8 +49,11 @@ export function gate1(k) {
 // مستويات المخاطرة: SL خلف نقطة الإبطال + ATR، TP1 عند مسبح سيولة، TP2 عند أبعد قمة/قاع في النطاق
 export function riskPlan(k, g) {
   const n = k.length, price = k[n-1].c, up = g.dir === 'up', atr = g.atr;
-  const sl = up ? Math.min(g.sweep.extreme, g.ob.lo) - 0.3*atr : Math.max(g.sweep.extreme, g.ob.hi) + 0.3*atr;
-  const risk = Math.abs(price - sl);
+  let sl = up ? Math.min(g.sweep.extreme, g.ob.lo) - 0.3*atr : Math.max(g.sweep.extreme, g.ob.hi) + 0.3*atr;
+  let risk = Math.abs(price - sl);
+  // وقف ضيق جداً يجعل RR>=3 سهلاً شكلياً لكن الضوضاء والرسوم تقتله: حد أدنى 1 ATR
+  if (risk < atr) { sl = up ? price - atr : price + atr; risk = atr; }
+  if (2 * FEE * price / risk > 0.25) return { pass: false, why: 'الرسوم تلتهم أكثر من 25% من المخاطرة' };
   if (!(risk > 0) || risk / price > 0.06) return { pass: false, why: 'الوقف بعيد جداً أو غير صالح' };
   const rec = n - 150;
   const pool = (up ? g.sw.H : g.sw.L).filter(s => s.i >= rec && (up ? s.p > price : s.p < price)).map(s => s.p).sort((a, b) => up ? a - b : b - a);
