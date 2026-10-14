@@ -30,7 +30,13 @@ export default function CoinDetail({ route, navigation }) {
 
   const dir = d ? (d.validated ? d.direction : 'neutral') : a?.direction;
   const dd = dirInfo(dir);
-  const sideEff = side || (dir === 'down' ? 'short' : 'long');
+  // التوصية الصريحة: لا توجد إلا إذا أثبت النموذج دقته واتفق المختارون على اتجاه
+  const rec = d && d.validated && d.direction !== 'neutral' ? (d.direction === 'up' ? 'long' : 'short') : null;
+  const banner = !d ? { c: C.dim, t: '🧠 جاري التحليل...' }
+    : rec ? { c: C.green, t: `✅ الصفقة المقترحة: ${rec === 'long' ? 'شراء (Long) 📈' : 'بيع (Short) 📉'} · احتمال النجاح ≈ ${d.prob.toFixed(0)}%` }
+    : d.validated ? { c: C.yellow, t: '⏳ لا إشارة حالياً: النموذج مُثبت على هذه العملة لكنه لا يعطي اتجاهاً الآن. الأفضل الانتظار.' }
+    : { c: C.red, t: '⛔ لا توجد صفقة موصى بها: لم يثبت أي نموذج دقته على هذه العملة.' };
+  const sideEff = side || rec || 'long';
 
   // ===== حساب تذكرة الصفقة =====
   const atrv = d?.atrNow ?? a?.atr; const price = t.price; const kk = sideEff === 'long' ? 1 : -1;
@@ -71,6 +77,7 @@ export default function CoinDetail({ route, navigation }) {
       </Card>
 
       <Card style={{ marginTop: 12 }}>
+        <Text style={{ color: banner.c, fontSize: 16, fontWeight: '800', marginBottom: 8, lineHeight: 24 }}>{banner.t}</Text>
         <Text style={{ color: dd.c, fontSize: 18, fontWeight: '700', marginBottom: 6 }}>
           التوقع: {dd.t}{d ? `  ·  الاحتمال ${d.prob.toFixed(0)}%` : a ? `  ·  ${a.confidence}%` : ''}
         </Text>
@@ -124,6 +131,9 @@ export default function CoinDetail({ route, navigation }) {
       ) : (
         <Card style={{ marginTop: 16, borderColor: C.green }}>
           <Text style={{ color: C.text, fontWeight: '800', fontSize: 17, marginBottom: 8 }}>🧾 تذكرة الصفقة</Text>
+          <Text style={{ color: banner.c, fontWeight: '700', marginBottom: 6, lineHeight: 22 }}>{banner.t}</Text>
+          {rec && sideEff !== rec && <Text style={{ color: C.red, fontWeight: '700', marginBottom: 6 }}>⚠️ اخترت عكس توصية النموذج!</Text>}
+          {!rec && <Text style={{ color: C.yellow, marginBottom: 6 }}>الاختيار هنا يدوي بدون توصية من النموذج.</Text>}
           <View style={{ flexDirection: 'row', marginBottom: 6 }}>
             <Chip label="Long شراء" active={sideEff === 'long'} onPress={() => setSide('long')} />
             <Chip label="Short بيع" active={sideEff === 'short'} onPress={() => setSide('short')} />
@@ -144,7 +154,7 @@ export default function CoinDetail({ route, navigation }) {
             <Text style={{ color: C.dim, fontSize: 12, marginTop: 4 }}>عند الهدف الأول يُغلق نصف الصفقة ويُنقل الوقف لنقطة الدخول (لا خسارة على الباقي).</Text>
             {warns.map((w, i) => <Text key={i} style={{ color: C.yellow, marginTop: 4 }}>⚠️ {w}</Text>)}
             <TouchableOpacity onPress={confirm} style={{ backgroundColor: C.green, borderRadius: 12, padding: 14, marginTop: 12, alignItems: 'center' }}>
-              <Text style={{ color: '#000', fontWeight: '800' }}>تأكيد فتح الصفقة</Text>
+              <Text style={{ color: '#000', fontWeight: '800' }}>{rec && sideEff === rec ? 'تأكيد فتح الصفقة المقترحة' : 'فتح صفقة يدوية (بدون توصية)'}</Text>
             </TouchableOpacity>
           </> : <Text style={{ color: C.dim }}>انتظر اكتمال التحليل لحساب مستويات الدخول.</Text>}
           <TouchableOpacity onPress={() => setTicket(false)} style={{ marginTop: 8, alignItems: 'center', padding: 8 }}><Text style={{ color: C.dim }}>إلغاء</Text></TouchableOpacity>

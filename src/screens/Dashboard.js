@@ -17,7 +17,7 @@ export default function Dashboard({ navigation }) {
       const ok = d.validated && d.prob >= settings.minConfidence;
       return { dir: ok ? d.direction : 'neutral', conf: d.prob.toFixed(0) + '%',
         tag: d.validated ? { t: `✅ نموذج مُثبت: دقة ${d.precision.toFixed(0)}% على ${d.n} إشارة`, c: C.green }
-                         : { t: `⛔ غير مُثبت (${d.n < 20 ? 'عينة صغيرة' : 'دقة ' + d.precision.toFixed(0) + '%'}) - لا توصية`, c: C.red } };
+                         : { t: `⛔ غير مُثبت (${d.chosenNames.length === 0 ? 'لا نموذج مؤهل بعد التحقق' : d.n < 20 ? 'عينة صغيرة' : 'دقة ' + d.precision.toFixed(0) + '%'}) - لا توصية`, c: C.red } };
     }
     const ok = a && a.confidence >= settings.minConfidence;
     return { dir: ok ? a.direction : 'neutral', conf: a ? a.confidence + '%' : '—', tag: null };
@@ -73,10 +73,13 @@ export default function Dashboard({ navigation }) {
       </Card>}
       <TextInput value={q} onChangeText={setQ} placeholder="ابحث: BTC, ETH, SOL..." placeholderTextColor={C.dim}
         style={{ backgroundColor: C.card, color: C.text, borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: C.border }} />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginBottom: 10 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0, marginBottom: 10 }} contentContainerStyle={{ alignItems: 'center', paddingVertical: 2 }}>
         {[['all', 'الكل'], ['fav', '⭐ المفضلة'], ['Binance', 'Binance'], ['Bybit', 'Bybit']].map(([k, l]) => <Chip key={k} label={l} active={ex === k} onPress={() => setEx(k)} />)}
         {[['vol', 'الأعلى سيولة'], ['conf', 'الأعلى احتمالاً'], ['safe', 'الأكثر أماناً'], ['proven', 'الأعلى تاريخياً']].map(([k, l]) => <Chip key={k} label={l} active={sort === k} onPress={() => setSort(k)} />)}
       </ScrollView>
+      {settings.interval === '15m' && <Text style={{ color: C.yellow, fontSize: 12, marginBottom: 8, textAlign: 'center' }}>
+        ⚠️ على إطار 15m تلتهم الرسوم معظم الربح المحتمل. جرّب 1h أو 4h من الإعدادات.
+      </Text>}
       <TouchableOpacity onPress={() => deepScan()} style={{ padding: 10, borderRadius: 10, borderWidth: 1, borderColor: C.green, alignItems: 'center', marginBottom: 10 }}>
         <Text style={{ color: C.green, fontWeight: '700' }}>{scanning ? `جاري التحليل العميق... (${Object.keys(deep).length}/30)` : '🧠 تحليل عميق لأعلى العملات (تاريخ طويل + تعلّم آلي)'}</Text>
       </TouchableOpacity>
