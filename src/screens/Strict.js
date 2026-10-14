@@ -1,22 +1,23 @@
 import React, { useState } from 'react';
-import { Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useStore } from '../store/useStore';
 import { fetchKlines, fetchDerivs } from '../services/api';
 import { analyzeStrict, backtestStrict } from '../utils/smc';
 import { C, fmt } from '../theme';
-import { Card, Row } from '../components';
+import { Card, Row, Chip } from '../components';
 
 const tick = () => new Promise(r => setTimeout(r, 0));
-const top20 = () => Object.values(useStore.getState().tickers).filter(t => t.exchange === 'Binance').sort((a, b) => b.volume - a.volume).slice(0, 20);
+const topN = (n) => Object.values(useStore.getState().tickers).filter(t => t.exchange === 'Binance').sort((a, b) => b.volume - a.volume).slice(0, n);
 const toJson = (t, a) => JSON.stringify({ symbol: t.symbol, direction: a.dir === 'up' ? 'LONG' : 'SHORT', confluence_score: a.score, reasons: a.reasons,
   entry: +a.entry.toPrecision(6), stop_loss: +a.sl.toPrecision(6), tp1: { price: +a.tp1.toPrecision(6), size: '50%' }, tp2: { price: +a.tp2.toPrecision(6), size: '50%' }, rr_to_tp2: +a.rr2.toFixed(1) }, null, 1);
 
 export default function Strict() {
   const [res, setRes] = useState([]); const [busy, setBusy] = useState(false); const [prog, setProg] = useState('');
+  const [count, setCount] = useState(20); const [diag, setDiag] = useState(null);
   const [bt, setBt] = useState(null); const [btBusy, setBtBusy] = useState(false); const [done, setDone] = useState(false);
 
   const scan = async () => {
-    setBusy(true); setRes([]); setDone(false); const list = top20(), out = [];
+    setBusy(true); setRes([]); setDone(false); setDiag(null); const list = topN(count), out = [];
     for (let x = 0; x < list.length; x++) {
       const t = list[x]; setProg(`${x + 1}/${list.length}`);
       try {
@@ -27,11 +28,14 @@ export default function Strict() {
       } catch (e) {}
       await tick();
     }
+    const reasons = {};
+    out.filter(x => !x.a.signal).forEach(({ a }) => { const r = (a.reasons[0] || 'غير محدد').replace(/[\d.]+/g, '#'); reasons[r] = (reasons[r] || 0) + 1; });
+    setDiag({ total: list.length, ok: out.length, failed: list.length - out.length, reasons });
     setBusy(false); setDone(true);
   };
 
   const runBt = async () => {
-    setBtBusy(true); let n = 0, w = 0, sum = 0; const list = top20();
+    setBtBusy(true); let n = 0, w = 0, sum = 0; const list = topN(count);
     for (const t of list) {
       try { const b = backtestStrict(await fetchKlines('Binance', t.symbol, '4h', 1000)); n += b.n; w += b.w; sum += b.expR * b.n; } catch (e) {}
       await tick();
@@ -55,11 +59,13 @@ export default function Strict() {
         <Text style={{ color: C.dim, lineHeight: 22 }}>
           لا صفقة إلا بعد اجتياز 3 بوابات معاً: (1) سحب سيولة + Order Block على 4h في خصم/علاوة، (2) فائدة مفتوحة وتمويل مؤكدان، (3) FVG أو CHoCH مع حجم على 1h. ثم وقف خلف نقطة الإبطال و RR لا يقل عن 1:3.
         </Text>
+        <Text style={{ color: C.dim, marginTop: 10, marginBottom: 6 }}>عدد العملات المفحوصة (أكثر = فرص أكثر ووقت أطول):</Text>
+        <View style={{ flexDirection: 'row' }}>{[20, 50, 100].map(n => <Chip key={n} label={String(n)} active={count === n} onPress={() => setCount(n)} />)}</View>
         <TouchableOpacity onPress={scan} disabled={busy} style={{ marginTop: 10, backgroundColor: C.green, padding: 12, borderRadius: 12, alignItems: 'center' }}>
-          <Text style={{ color: '#000', fontWeight: '800' }}>{busy ? `جاري الفحص... ${prog}` : 'فحص أعلى 20 عملة على Binance'}</Text>
+          <Text style={{ color: '#000', fontWeight: '800' }}>{busy ? `جاري الفحص... ${prog}` : `فحص أعلى ${count} عملة على Binance`}</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={runBt} disabled={btBusy} style={{ marginTop: 8, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: C.border, alignItems: 'center' }}>
-          <Text style={{ color: C.text }}>{btBusy ? 'جاري الاختبار التاريخي...' : 'اختبار المحرك تاريخياً (4h · 1000 شمعة × 20 عملة)'}</Text>
+          <Text style={{ color: C.text }}>{btBusy ? 'جاري الاختبار التاريخي...' : `اختبار المحرك تاريخياً (4h · 1000 شمعة × ${count} عملة)`}</Text>
         </TouchableOpacity>
       </Card>
 
@@ -89,10 +95,20 @@ export default function Strict() {
         </Card>
       ))}
 
-      {done && sigs.length === 0 && <Card style={{ marginTop: 10, borderColor: C.yellow }}>
+      {done && diag && diag.ok === 0 && <Card style={{ marginTop: 10, borderColor: C.red }}>
+        <Text style={{ color: C.red, fontWeight: '800', lineHeight: 24 }}>تعذر جلب بيانات أي عملة. تحقق من الإنترنت، أو قد يكون Binance محجوباً على شبكتك.</Text>
+      </Card>}
+
+      {done && diag && diag.ok > 0 && sigs.length === 0 && <Card style={{ marginTop: 10, borderColor: C.yellow }}>
         <Text style={{ color: C.yellow, fontWeight: '800', fontSize: 16, lineHeight: 26 }}>
           السوق في منطقة ضوضاء (Noise Zone)، لا توجد فرص عالية الاحتمالية حالياً.
         </Text>
+      </Card>}
+
+      {done && diag && diag.ok > 0 && <Card style={{ marginTop: 10 }}>
+        <Text style={{ color: C.text, fontWeight: '700', marginBottom: 4 }}>ملخص الفحص: {diag.ok} عملة{diag.failed ? ` (فشل جلب ${diag.failed})` : ''}</Text>
+        {Object.entries(diag.reasons).sort((a, b) => b[1] - a[1]).map(([r, c]) => <Row key={r} a={r} b={String(c)} />)}
+        <Text style={{ color: C.dim, fontSize: 12, marginTop: 6 }}>هذا يوضح أين تفشل العملات. ندرة الفرص طبيعية: شروط المحرك صارمة عمداً.</Text>
       </Card>}
 
       {near.length > 0 && <Text style={{ color: C.text, fontWeight: '700', marginTop: 14, marginBottom: 6 }}>الأقرب لكنها لم تكتمل ({near.length})</Text>}
