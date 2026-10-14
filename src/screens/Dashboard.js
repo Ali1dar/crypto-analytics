@@ -61,6 +61,9 @@ export default function Dashboard({ navigation }) {
     );
   };
 
+  const wins = {};
+  Object.values(deep).forEach(d => { if (d.validated && d.chosenNames[0]) wins[d.chosenNames[0]] = (wins[d.chosenNames[0]] || 0) + 1; });
+  const winners = Object.entries(wins).sort((a, b) => b[1] - a[1]).slice(0, 3);
   const btc = tickers['Binance:BTCUSDT'];
   return (
     <View style={{ flex: 1, backgroundColor: C.bg, padding: 12 }}>
@@ -77,6 +80,9 @@ export default function Dashboard({ navigation }) {
       <TouchableOpacity onPress={() => deepScan()} style={{ padding: 10, borderRadius: 10, borderWidth: 1, borderColor: C.green, alignItems: 'center', marginBottom: 10 }}>
         <Text style={{ color: C.green, fontWeight: '700' }}>{scanning ? `جاري التحليل العميق... (${Object.keys(deep).length}/30)` : '🧠 تحليل عميق لأعلى العملات (تاريخ طويل + تعلّم آلي)'}</Text>
       </TouchableOpacity>
+      {winners.length > 0 && <Text style={{ color: C.dim, fontSize: 12, marginBottom: 8, textAlign: 'center' }}>
+        أكثر النماذج فوزاً: {winners.map(([n, c]) => `${n} (${c})`).join(' · ')}
+      </Text>}
       <FlatList data={data} keyExtractor={t => t.key} renderItem={renderItem}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={() => analyzeTop()} tintColor={C.green} />}
         ListEmptyComponent={<Text style={{ color: C.dim, textAlign: 'center', marginTop: 40 }}>لا توجد نتائج.</Text>} />

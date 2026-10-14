@@ -80,7 +80,7 @@ export default function CoinDetail({ route, navigation }) {
       </Card>
 
       {d && <Card style={{ marginTop: 12 }}>
-        <Text style={{ color: C.text, fontWeight: '700', marginBottom: 4 }}>🧠 التحليل العميق ({d.interval})</Text>
+        <Text style={{ color: C.text, fontWeight: '700', marginBottom: 4 }}>🧠 التحليل العميق ({d.interval}) · {d.models.length} نماذج</Text>
         <Row a="التاريخ المحلل" b={`${d.candles} شمعة ≈ ${Math.round(d.candles * MIN[d.interval] / 1440)} يوم`} />
         <Row a="دقة النموذج على بيانات لم يرها" b={`${d.precision.toFixed(1)}% (${d.n} إشارة)`} bColor={d.precision >= 55 ? C.green : C.red} />
         <Row a="التخمين العشوائي المقابل" b={`${d.baseline.toFixed(0)}%`} />
@@ -88,6 +88,17 @@ export default function CoinDetail({ route, navigation }) {
         <Row a="نسبة الشموع التي أصدر فيها إشارة" b={`${d.coverage.toFixed(0)}%`} />
         <Row a="التقلب الحالي ATR" b={`${d.atrPct.toFixed(2)}% (أعلى من ${d.volRank.toFixed(0)}% من التاريخ)`} />
         <Row a={`متوسط حركة ${d.H} شمعة`} b={`${d.avgMove.toFixed(2)}%`} />
+        <Text style={{ color: C.text, fontWeight: '700', marginTop: 10, marginBottom: 2 }}>ترتيب النماذج على هذه العملة</Text>
+        <Text style={{ color: C.dim, fontSize: 12, marginBottom: 4 }}>الاختيار بنتيجة "التحقق"، و"الاختبار" بيانات لم تدخل في الاختيار.</Text>
+        {d.models.map(m => (
+          <View key={m.id} style={{ paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: C.border }}>
+            <Text style={{ color: m.chosen ? C.green : C.text, fontWeight: m.chosen ? '700' : '400' }}>{m.chosen ? '⭐ ' : ''}{m.name}</Text>
+            <Text style={{ color: C.dim, fontSize: 12 }}>
+              تحقق {m.val.precision.toFixed(0)}% ({m.val.n}) · اختبار <Text style={{ color: m.test.n >= 10 ? (m.test.exp > 0 ? C.green : C.red) : C.dim }}>{m.test.precision.toFixed(0)}% ({m.test.n})</Text>
+            </Text>
+          </View>
+        ))}
+        {d.chosenNames.length > 0 && <Text style={{ color: C.dim, fontSize: 12, marginTop: 6 }}>التوصية = تصويت المختارين، وتحتاج اتفاق نموذجين على الأقل.</Text>}
         <Text style={{ color: d.validated ? C.green : C.red, marginTop: 6, fontWeight: '700' }}>
           {d.validated ? '✅ النموذج حقق دقة مقبولة خارج العينة على هذه العملة.' : '⛔ لم يتفوق النموذج بوضوح هنا، فلا تعتمد على توقعه.'}
         </Text>
