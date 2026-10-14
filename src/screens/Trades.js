@@ -20,6 +20,9 @@ export default function Trades() {
   const W = Dimensions.get('window').width - 56, H = 100;
   const mn = Math.min(...curve), mx = Math.max(...curve);
   const pts = curve.map((v, i) => `${(i / Math.max(curve.length - 1, 1)) * W},${H - ((v - mn) / (mx - mn || 1)) * H}`).join(' ');
+  const grp = (f) => { const g = closed.filter(f); return { n: g.length, w: g.filter(t => t.pnl > 0).length, pnl: g.reduce((s, t) => s + t.pnl, 0) }; };
+  const gr = grp(t => t.rec), gm = grp(t => !t.rec);
+  const fmtG = (g) => g.n ? `${g.w}/${g.n} (${(g.w / g.n * 100).toFixed(0)}%) · ${usd(g.pnl)}` : 'لا توجد بعد';
   const h = { color: C.text, fontSize: 17, fontWeight: '700', marginVertical: 12 };
 
   return (
@@ -38,12 +41,19 @@ export default function Trades() {
         <Svg width={W} height={H}><Polyline points={pts} fill="none" stroke={total >= 0 ? C.green : C.red} strokeWidth="2" /></Svg>
       </Card>}
 
+      <Card style={{ marginTop: 10 }}>
+        <Text style={{ color: C.text, fontWeight: '700', marginBottom: 4 }}>🧪 اختبار حي: هل التوصيات تنجح فعلاً؟</Text>
+        <Row a="صفقات بتوصية النموذج" b={fmtG(gr)} />
+        <Row a="صفقات يدوية" b={fmtG(gm)} />
+        <Text style={{ color: C.dim, fontSize: 12 }}>لا تعتمد على التوصيات قبل أن تغلق 50 صفقة مقترحة على الأقل بنتيجة موجبة.</Text>
+      </Card>
+
       <Text style={h}>الصفقات الحالية ({open.length})</Text>
       {open.map(t => {
         const p = livePnl(t), pct = (p / (t.size * (t.tp1Hit ? 2 : 1))) * 100;
         return (
           <Card key={t.id} style={{ marginBottom: 10 }}>
-            <Text style={{ color: t.side === 'long' ? C.green : C.red, fontWeight: '700' }}>{t.symbol} · {t.side === 'long' ? 'Long' : 'Short'} · {t.exchange}</Text>
+            <Text style={{ color: t.side === 'long' ? C.green : C.red, fontWeight: '700' }}>{t.symbol} · {t.side === 'long' ? 'Long' : 'Short'} · {t.exchange} · {t.rec ? '✅ مقترحة' : '✋ يدوية'}</Text>
             <Row a="الدخول / الحالي" b={`${fmt(t.entry)} / ${fmt(tickers[t.key]?.price ?? t.entry)}`} />
             <Row a={t.tp1Hit ? 'الهدف الثاني' : 'الهدف الأول'} b={fmt(t.tp1Hit ? t.tp2 : t.tp)} bColor={C.green} />
             <Row a={t.tp1Hit ? 'الوقف (عند الدخول)' : 'الوقف'} b={fmt(t.sl)} bColor={C.red} />

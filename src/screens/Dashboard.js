@@ -17,7 +17,7 @@ export default function Dashboard({ navigation }) {
       const ok = d.validated && d.prob >= settings.minConfidence;
       return { dir: ok ? d.direction : 'neutral', conf: d.prob.toFixed(0) + '%',
         tag: d.validated ? { t: `✅ نموذج مُثبت: دقة ${d.precision.toFixed(0)}% على ${d.n} إشارة`, c: C.green }
-                         : { t: `⛔ غير مُثبت (${d.chosenNames.length === 0 ? 'لا نموذج مؤهل بعد التحقق' : d.n < 20 ? 'عينة صغيرة' : 'دقة ' + d.precision.toFixed(0) + '%'}) - لا توصية`, c: C.red } };
+                         : { t: `⛔ غير مُثبت (${d.chosenNames.length === 0 ? 'لا نموذج مؤهل بعد التحقق' : d.n < 30 ? 'عينة صغيرة' : 'دقة ' + d.precision.toFixed(0) + '%'}) - لا توصية`, c: C.red } };
     }
     const ok = a && a.confidence >= settings.minConfidence;
     return { dir: ok ? a.direction : 'neutral', conf: a ? a.confidence + '%' : '—', tag: null };

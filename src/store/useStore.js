@@ -67,8 +67,8 @@ export const useStore = create(persist((set, get) => ({
     set({ scanning: false });
   },
 
-  openTrade: ({ key, symbol, exchange, side, entry, tp, tp2, sl, size, prob }) => set(s => ({
-    trades: [{ id: String(Date.now()), key, symbol, exchange, side, entry, tp, tp2, sl, sl0: sl, size, prob,
+  openTrade: ({ key, symbol, exchange, side, entry, tp, tp2, sl, size, prob, rec, risk }) => set(s => ({
+    trades: [{ id: String(Date.now()), key, symbol, exchange, side, entry, tp, tp2, sl, sl0: sl, size, prob, rec: !!rec, risk: risk || 0,
                realized: -size * FEE, tp1Hit: false, status: 'open', openedAt: Date.now() }, ...s.trades] })),
 
   closeTrade: (id, price, reason = 'يدوي') => set(s => ({

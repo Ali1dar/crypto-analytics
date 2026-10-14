@@ -13,7 +13,7 @@ export default function CoinDetail({ route, navigation }) {
   const { key } = route.params;
   const t = useStore(s => s.tickers[key]); const a = useStore(s => s.analysis[key]); const d = useStore(s => s.deep[key]);
   const busy = useStore(s => !!s.deepBusy[key]); const fav = useStore(s => s.favorites.includes(key));
-  const settings = useStore(s => s.settings); const fng = useStore(s => s.fng);
+  const trades = useStore(s => s.trades); const settings = useStore(s => s.settings); const fng = useStore(s => s.fng);
   const { deepAnalyze, openTrade, toggleFav, balance } = useStore.getState();
   const [tf, setTf] = useState('1h'); const [closes, setCloses] = useState([]);
   const [ticket, setTicket] = useState(false); const [side, setSide] = useState(null); const [risk, setRisk] = useState(settings.riskPct || 1);
@@ -59,10 +59,17 @@ export default function CoinDetail({ route, navigation }) {
   if (lev > 3) warns.push(`الحجم يتطلب رافعة ${lev.toFixed(1)}x.`);
   if (fng && (fng.value < 20 || fng.value > 80)) warns.push('السوق في حالة ' + (fng.value < 20 ? 'خوف شديد' : 'طمع شديد') + '.');
 
+  const openRisk = trades.filter(x => x.status === 'open').reduce((q, x) => q + (x.risk || 0), 0);
+  if (lv && openRisk + realRisk > bal * 0.06) warns.push(`إجمالي المخاطرة المفتوحة سيصبح ${((openRisk + realRisk) / bal * 100).toFixed(1)}% من الرصيد (الحد المنصوح 6%).`);
   const confirm = () => {
     if (!lv) return Alert.alert('لا توجد بيانات تقلب كافية بعد.');
-    openTrade({ key, symbol: t.symbol, exchange: t.exchange, side: sideEff, entry: price, tp: lv.tp1, tp2: lv.tp2, sl: lv.sl, size, prob: p });
-    setTicket(false); Alert.alert('تم', 'فُتحت الصفقة. تابعها من تبويب الصفقات.');
+    const go = () => {
+      openTrade({ key, symbol: t.symbol, exchange: t.exchange, side: sideEff, entry: price, tp: lv.tp1, tp2: lv.tp2, sl: lv.sl, size, prob: p, rec: !!rec && sideEff === rec, risk: realRisk });
+      setTicket(false); Alert.alert('تم', 'فُتحت الصفقة. تابعها من تبويب الصفقات.');
+    };
+    const dup = trades.some(x => x.status === 'open' && x.symbol === t.symbol);
+    if (dup) Alert.alert('صفقة مكررة', 'عندك صفقة مفتوحة على نفس العملة (ربما في منصة أخرى). فتح أخرى يضاعف المخاطرة على نفس الرهان.', [{ text: 'إلغاء' }, { text: 'فتح رغم ذلك', onPress: go }]);
+    else go();
   };
 
   return (
@@ -90,6 +97,7 @@ export default function CoinDetail({ route, navigation }) {
         <Text style={{ color: C.text, fontWeight: '700', marginBottom: 4 }}>🧠 التحليل العميق ({d.interval}) · {d.models.length} نماذج</Text>
         <Row a="التاريخ المحلل" b={`${d.candles} شمعة ≈ ${Math.round(d.candles * MIN[d.interval] / 1440)} يوم`} />
         <Row a="دقة النموذج على بيانات لم يرها" b={`${d.precision.toFixed(1)}% (${d.n} إشارة)`} bColor={d.precision >= 55 ? C.green : C.red} />
+        <Row a="الحد الأدنى الإحصائي للدقة (ثقة 95%)" b={`${d.lower.toFixed(0)}%`} bColor={d.lower >= 50 ? C.green : C.red} />
         <Row a="التخمين العشوائي المقابل" b={`${d.baseline.toFixed(0)}%`} />
         <Row a="متوسط الربح للصفقة بعد الرسوم" b={`${d.exp >= 0 ? '+' : ''}${d.exp.toFixed(2)} R`} bColor={d.exp > 0 ? C.green : C.red} />
         <Row a="نسبة الشموع التي أصدر فيها إشارة" b={`${d.coverage.toFixed(0)}%`} />

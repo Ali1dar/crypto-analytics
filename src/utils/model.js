@@ -125,6 +125,8 @@ function label(k, i, a, H) {
   return null;
 }
 
+const wilsonLow = (w, n, z = 1.64) => { if (!n) return 0; const p = w/n, d = 1 + z*z/n; return ((p + z*z/(2*n) - z*Math.sqrt(p*(1-p)/n + z*z/(4*n*n))) / d) * 100; };
+
 function evalSet(sig, set, k, atr) {
   let w = 0, l = 0, sum = 0;
   for (const s of set) {
@@ -133,7 +135,7 @@ function evalSet(sig, set, k, atr) {
     sum += (win ? 1 : -1) - 2*FEE*k[s.i].c/(BARRIER*atr[s.i]);
     win ? w++ : l++;
   }
-  const n = w + l; return { n, precision: n ? w/n*100 : 0, exp: n ? sum/n : 0 };
+  const n = w + l; return { n, w, precision: n ? w/n*100 : 0, exp: n ? sum/n : 0 };
 }
 
 export function deepAnalyze(k, H = 12, thr = 0.58) {
@@ -169,7 +171,7 @@ export function deepAnalyze(k, H = 12, thr = 0.58) {
   const liveSig = (id) => (id in live ? live[id] : sigs[id][S.n-1]);
   const dirNum = chosen.length ? vote(liveSig) : 0;
   const direction = dirNum === 1 ? 'up' : dirNum === -1 ? 'down' : 'neutral';
-  const emp = test.n >= 15 ? test.precision : 50;                    // الاحتمال = الدقة التجريبية الفعلية خارج العينة
+  const emp = test.n >= 30 ? test.precision : 50;                    // الاحتمال = الدقة التجريبية الفعلية خارج العينة
   const pUp = direction === 'up' ? emp/100 : direction === 'down' ? 1 - emp/100 : 0.5;
 
   const nowAtr = S.atr[k.length-1], hist = S.atr.slice(200);
@@ -178,7 +180,7 @@ export function deepAnalyze(k, H = 12, thr = 0.58) {
   return { candles: k.length, samples: N, models: table, chosenNames: chosen.map(m => m.name),
     n: test.n, precision: test.precision, exp: test.exp, coverage: test.n/C.length*100,
     baseline: Math.max(up, 1-up)*100, pUp, prob: Math.max(pUp, 1-pUp)*100, direction,
-    validated: chosen.length > 0 && test.n >= 15 && test.precision >= 55 && test.exp > 0, thr, H,
+    lower: wilsonLow(test.w || 0, test.n), validated: chosen.length > 0 && test.n >= 30 && test.precision >= 55 && wilsonLow(test.w || 0, test.n) >= 50 && test.exp > 0, thr, H,
     atrNow: nowAtr, atrPct: nowAtr/k[k.length-1].c*100,
     volRank: hist.filter(x => x <= nowAtr).length/hist.length*100, avgMove: cnt ? mv/cnt*100 : 0 };
 }
