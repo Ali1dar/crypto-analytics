@@ -43,3 +43,14 @@ export async function fetchFearGreed() {
   const d = await get('https://api.alternative.me/fng/?limit=1');
   return { value: +d.data[0].value, label: d.data[0].value_classification };
 }
+
+// مشتقات باينانس (عقود دائمة): الفائدة المفتوحة ومعدل التمويل. ترجع null إذا لم تتوفر للعملة
+export async function fetchDerivs(symbol, priceChange) {
+  try {
+    const F = 'https://fapi.binance.com';
+    const [oi, pi] = await Promise.all([get(`${F}/futures/data/openInterestHist?symbol=${symbol}&period=4h&limit=6`), get(`${F}/fapi/v1/premiumIndex?symbol=${symbol}`)]);
+    if (!Array.isArray(oi) || oi.length < 4) return null;
+    const a = +oi[oi.length - 4].sumOpenInterest, b = +oi[oi.length - 1].sumOpenInterest;
+    return { oiChange: (b / a - 1) * 100, funding: +pi.lastFundingRate, priceChange };
+  } catch (e) { return null; }
+}
